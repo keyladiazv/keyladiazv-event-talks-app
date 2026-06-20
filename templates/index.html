@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BigQuery Release Notes Tracker</title>
+    <meta name="description" content="Visualiza, filtra y publica las últimas notas de la versión de BigQuery en Twitter.">
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="bg-glow"></div>
+    
+    <header class="header">
+        <div class="container header-container">
+            <div class="logo-area">
+                <div class="logo-icon">
+                    <i class="fa-solid fa-database"></i>
+                </div>
+                <div class="logo-text">
+                    <h1>BigQuery</h1>
+                    <p>Release Notes Explorer</p>
+                </div>
+            </div>
+            
+            <div class="header-actions">
+                <div class="sync-status" id="syncStatus">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Cargando...</span>
+                </div>
+                <button class="btn btn-primary" id="btnRefresh" title="Forzar actualización desde Google Cloud">
+                    <i class="fa-solid fa-rotate" id="refreshIcon"></i>
+                    <span>Actualizar</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container main-content">
+        <!-- Dashboard Toolbar -->
+        <section class="toolbar" aria-label="Controles de búsqueda y filtros">
+            <div class="search-box">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="searchInput" placeholder="Buscar en las actualizaciones (ej. Gemini, embeddings, quotas...)" aria-label="Buscar notas de versión">
+                <button id="btnClearSearch" class="clear-search-btn" title="Limpiar búsqueda" style="display: none;">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <div class="filters-container">
+                <div class="filter-group">
+                    <span class="filter-label"><i class="fa-solid fa-filter"></i> Tipo:</span>
+                    <div class="filter-tags" id="typeFilters" role="group" aria-label="Filtrar por tipo de actualización">
+                        <button class="filter-tag active" data-type="all">Todos</button>
+                        <button class="filter-tag" data-type="Feature">Features</button>
+                        <button class="filter-tag" data-type="Announcement">Announcements</button>
+                        <button class="filter-tag" data-type="Issue">Issues</button>
+                        <button class="filter-tag" data-type="Deprecated">Deprecated</button>
+                    </div>
+                </div>
+                
+                <div class="sort-group">
+                    <label for="sortSelect" class="filter-label"><i class="fa-solid fa-sort"></i> Orden:</label>
+                    <select id="sortSelect" class="sort-select">
+                        <option value="desc">Más recientes primero</option>
+                        <option value="asc">Más antiguas primero</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="selection-status-bar" id="selectionStatusBar">
+                <div class="selection-info">
+                    <span id="selectionCount">0 notas seleccionadas</span>
+                </div>
+                <div class="selection-actions">
+                    <button class="btn btn-text" id="btnSelectAll"><i class="fa-regular fa-square-check"></i> Seleccionar visibles</button>
+                    <button class="btn btn-text btn-danger" id="btnClearSelection"><i class="fa-regular fa-square"></i> Desmarcar todas</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Loading State -->
+        <section class="loading-state" id="loadingState" style="display: none;">
+            <div class="spinner">
+                <div class="double-bounce1"></div>
+                <div class="double-bounce2"></div>
+            </div>
+            <p>Obteniendo las últimas notas de Google Cloud...</p>
+        </section>
+
+        <!-- Error State -->
+        <section class="error-state" id="errorState" style="display: none;">
+            <div class="error-icon">
+                <i class="fa-solid fa-circle-exclamation"></i>
+            </div>
+            <h2>Error de Conexión</h2>
+            <p id="errorMessage">No se pudieron cargar las notas de la versión. Por favor, inténtalo de nuevo.</p>
+            <button class="btn btn-secondary" id="btnRetry">
+                <i class="fa-solid fa-arrows-rotate"></i> Reintentar
+            </button>
+        </section>
+
+        <!-- Empty State -->
+        <section class="empty-state" id="emptyState" style="display: none;">
+            <div class="empty-icon">
+                <i class="fa-solid fa-magnifying-glass-minus"></i>
+            </div>
+            <h2>Sin resultados</h2>
+            <p>No encontramos ninguna actualización que coincida con tus filtros o término de búsqueda.</p>
+        </section>
+
+        <!-- Releases Grid -->
+        <section class="releases-grid" id="releasesGrid" aria-label="Notas de la versión de BigQuery">
+            <!-- Cards will be dynamically inserted here by JS -->
+        </section>
+    </main>
+
+    <!-- Floating Actions Panel (Slides up when items are selected) -->
+    <div class="floating-panel" id="floatingPanel">
+        <div class="floating-container">
+            <span class="selected-text" id="floatingPanelText">1 actualización seleccionada</span>
+            <div class="floating-actions">
+                <button class="btn btn-light" id="btnCancelFloat" title="Cancelar selección">Cancelar</button>
+                <button class="btn btn-twitter" id="btnTweetFloat">
+                    <i class="fa-brands fa-x-twitter"></i>
+                    <span>Publicar en Twitter</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Twitter Composer Modal -->
+    <div class="modal-overlay" id="tweetModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="modalTitle"><i class="fa-brands fa-x-twitter"></i> Componer Tweet</h3>
+                <button class="modal-close-btn" id="btnModalClose" aria-label="Cerrar modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="tweet-helper-text">
+                    Personaliza tu mensaje antes de compartirlo en Twitter (X).
+                </div>
+                <div class="textarea-wrapper">
+                    <textarea id="tweetContent" rows="8" placeholder="¿Qué está pasando?"></textarea>
+                </div>
+                <div class="modal-meta">
+                    <span class="character-count" id="charCount">0/280</span>
+                    <span class="character-warning" id="charWarning" style="display: none;">
+                        <i class="fa-solid fa-triangle-exclamation"></i> Supera los 280 caracteres estándar (se enviará completo, pero Twitter podría truncarlo a no premium).
+                    </span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="btnModalCancel">Cancelar</button>
+                <button class="btn btn-twitter" id="btnModalSend">
+                    <i class="fa-brands fa-x-twitter"></i> Publicar Tweet
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="main-footer">
+        <div class="container footer-content">
+            <p>BigQuery Release Notes Explorer &copy; 2026. Datos oficiales de <a href="https://cloud.google.com/bigquery/docs/release-notes" target="_blank" rel="noopener noreferrer">Google Cloud Platform Feed</a>.</p>
+        </div>
+    </footer>
+
+    <!-- JavaScript logic -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
