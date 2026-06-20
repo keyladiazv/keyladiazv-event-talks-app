@@ -17,6 +17,10 @@ const DOM = {
     statusDot: document.querySelector('.status-dot'),
     statusText: document.querySelector('.status-text'),
     
+    btnThemeToggle: document.getElementById('btnThemeToggle'),
+    themeIcon: document.getElementById('themeIcon'),
+    btnExportCSV: document.getElementById('btnExportCSV'),
+    
     searchInput: document.getElementById('searchInput'),
     btnClearSearch: document.getElementById('btnClearSearch'),
     typeFilters: document.getElementById('typeFilters'),
@@ -52,12 +56,19 @@ const DOM = {
 
 // Initialize Application
 document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
     setupEventListeners();
     fetchReleases();
 });
 
 // Event Listeners Configuration
 function setupEventListeners() {
+    // Theme toggle
+    DOM.btnThemeToggle.addEventListener('click', toggleTheme);
+    
+    // CSV Export
+    DOM.btnExportCSV.addEventListener('click', exportToCSV);
+    
     // Refresh buttons
     DOM.btnRefresh.addEventListener('click', () => fetchReleases(true));
     DOM.btnRetry.addEventListener('click', () => fetchReleases(true));
@@ -231,6 +242,9 @@ function renderGrid() {
                     <span>Ver original</span>
                 </a>
                 <div class="share-buttons">
+                    <button class="share-btn share-btn-copy" title="Copiar nota al portapapeles">
+                        <i class="fa-regular fa-copy"></i>
+                    </button>
                     <button class="share-btn share-btn-twitter" title="Compartir esta nota en Twitter">
                         <i class="fa-brands fa-x-twitter"></i>
                     </button>
@@ -255,6 +269,26 @@ function renderGrid() {
                 checkbox.checked = !checkbox.checked;
                 toggleSelectCard(item.id);
             }
+        });
+        
+        // Quick copy share button
+        const copyBtn = card.querySelector('.share-btn-copy');
+        copyBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            navigator.clipboard.writeText(item.plain_text).then(() => {
+                const icon = copyBtn.querySelector('i');
+                copyBtn.classList.add('copied');
+                icon.className = 'fa-solid fa-check';
+                copyBtn.title = '¡Copiado!';
+                
+                setTimeout(() => {
+                    copyBtn.classList.remove('copied');
+                    icon.className = 'fa-regular fa-copy';
+                    copyBtn.title = 'Copiar nota al portapapeles';
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+            });
         });
         
         // Quick tweet share button
@@ -509,4 +543,85 @@ function publishTweet() {
     if (appState.selectedIds.size > 1) {
         clearSelection();
     }
+}
+
+// Theme management functions
+function initTheme() {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'light') {
+        document.body.classList.add('light-theme');
+        DOM.themeIcon.className = 'fa-solid fa-sun';
+        DOM.btnThemeToggle.title = 'Cambiar a modo oscuro';
+    } else {
+        document.body.classList.remove('light-theme');
+        DOM.themeIcon.className = 'fa-solid fa-moon';
+        DOM.btnThemeToggle.title = 'Cambiar a modo claro';
+    }
+}
+
+function toggleTheme() {
+    const isLight = document.body.classList.toggle('light-theme');
+    if (isLight) {
+        localStorage.setItem('theme', 'light');
+        DOM.themeIcon.className = 'fa-solid fa-sun';
+        DOM.btnThemeToggle.title = 'Cambiar a modo oscuro';
+    } else {
+        localStorage.setItem('theme', 'dark');
+        DOM.themeIcon.className = 'fa-solid fa-moon';
+        DOM.btnThemeToggle.title = 'Cambiar a modo claro';
+    }
+}
+
+// Export to CSV utility
+function exportToCSV() {
+    if (appState.filteredReleases.length === 0) {
+        alert('No hay notas de versión visibles para exportar.');
+        return;
+    }
+    
+    // CSV Header
+    const headers = ['ID', 'Fecha', 'Tipo de Nota', 'Actualizado (Timestamp)', 'Enlace Original', 'Cuerpo (Texto Plano)'];
+    
+    // Helper to escape values for CSV
+    const escapeCSV = (val) => {
+        if (val === null || val === undefined) return '';
+        let str = String(val);
+        str = str.replace(/"/g, '""');
+        if (str.includes('"') || str.includes(',') || str.includes('\n') || str.includes('\r')) {
+            str = `"${str}"`;
+        }
+        return str;
+    };
+    
+    // Build CSV content
+    let csvContent = '\uFEFF'; // Add BOM for UTF-8 compatibility with Excel
+    csvContent += headers.map(escapeCSV).join(',') + '\r\n';
+    
+    appState.filteredReleases.forEach(item => {
+        const row = [
+            item.id,
+            item.date,
+            item.type,
+            item.updated,
+            item.link,
+            item.plain_text
+        ];
+        csvContent += row.map(escapeCSV).join(',') + '\r\n';
+    });
+    
+    // Create blob and trigger download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    
+    // Generate filename based on filters
+    const filterText = appState.activeFilter !== 'all' ? `_${appState.activeFilter.toLowerCase()}` : '';
+    const dateStr = new Date().toISOString().split('T')[0];
+    link.setAttribute('href', url);
+    link.setAttribute('download', `bigquery_release_notes${filterText}_${dateStr}.csv`);
+    link.style.visibility = 'hidden';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }

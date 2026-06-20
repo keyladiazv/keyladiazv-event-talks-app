@@ -30,6 +30,9 @@
             </div>
             
             <div class="header-actions">
+                <button class="theme-toggle-btn" id="btnThemeToggle" title="Cambiar esquema de color" aria-label="Cambiar tema">
+                    <i class="fa-solid fa-moon" id="themeIcon"></i>
+                </button>
                 <div class="sync-status" id="syncStatus">
                     <span class="status-dot"></span>
                     <span class="status-text">Cargando...</span>
@@ -71,6 +74,10 @@
                         <option value="desc">Más recientes primero</option>
                         <option value="asc">Más antiguas primero</option>
                     </select>
+                    <button class="btn btn-secondary" id="btnExportCSV" title="Exportar notas visibles a CSV">
+                        <i class="fa-solid fa-file-csv"></i>
+                        <span>Exportar CSV</span>
+                    </button>
                 </div>
             </div>
             
